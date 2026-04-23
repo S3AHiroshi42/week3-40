@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高士德午餐排行榜 - HTML版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #fdfcfb; }
+        .lunch-card { transition: all 0.3s ease; }
+        .ranking-badge { position: absolute; top: -10px; left: -10px; z-index: 10; width: 32px; h-100: 32px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; border: 2px solid white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#f97316',
+                        accent: '#fb923c',
+                        'warm-bg': '#fff7ed',
+                        'warm-border': '#ffedd5',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen pb-20">
+
+    <!-- Header -->
+    <header class="sticky top-0 z-50 w-full border-b border-warm-border bg-white/90 backdrop-blur-md">
+        <div class="container mx-auto px-4 h-16 flex items-center justify-between max-w-3xl">
+            <div class="flex items-center gap-2">
+                <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.8 2.8c.5-.5 1.2-.5 1.7 0l8.7 8.7c.5.5.5 1.2 0 1.7l-8.7 8.7c-.5.5-1.2.5-1.7 0L3.1 13.2c-.5-.5-.5-1.2 0-1.7l8.7-8.7Z"/><path d="M7 10h10"/><path d="M7 14h10"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-black tracking-tight leading-none text-primary">高士德午餐</h1>
+                    <p class="text-[10px] font-bold text-orange-400 uppercase tracking-widest">HTML PERSISTENCE</p>
+                </div>
+            </div>
+
+            <div class="flex-1 mx-4 relative hidden sm:block">
+                <input type="text" id="searchInput" placeholder="搜尋餐廳..." 
+                    class="w-full pl-10 pr-4 bg-warm-bg border-warm-border border focus:ring-primary focus:border-primary rounded-full h-10 text-sm outline-none"
+                    oninput="renderList()">
+                <div class="absolute left-3 top-1/2 -translate-y-1/2 text-orange-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6 max-w-3xl">
+        <!-- Sorting & Filter Controls -->
+        <div class="space-y-4 mb-8">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="flex bg-warm-bg p-1 rounded-lg border border-warm-border self-start" id="sortGroup">
+                    <button onclick="setSort('heat')" id="btnSortHeat" class="px-4 py-1.5 text-xs font-bold rounded-md transition-all bg-primary text-white shadow-md">熱度排行</button>
+                    <button onclick="setSort('latest')" id="btnSortLatest" class="px-4 py-1.5 text-xs font-bold rounded-md transition-all text-orange-600 hover:bg-orange-100">最新發佈</button>
+                </div>
+
+                <div class="flex flex-col gap-2 self-start">
+                    <div class="flex bg-warm-bg p-1 rounded-lg border border-warm-border" id="statusGroup">
+                        <button onclick="setStatusFilter('all')" id="fAll" class="px-4 py-1.5 text-xs font-bold rounded-md transition-all bg-primary text-white shadow-md">全部</button>
+                        <button onclick="setStatusFilter('active')" id="fActive" class="px-4 py-1.5 text-xs font-bold rounded-md transition-all text-orange-600 hover:bg-orange-100">待吃</button>
+                        <button onclick="setStatusFilter('done')" id="fDone" class="px-4 py-1.5 text-xs font-bold rounded-md transition-all text-orange-600 hover:bg-orange-100">已探店</button>
+                    </div>
+                    <div class="flex items-center gap-3 px-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        <span class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-primary"></div> 待吃: <span id="activeCount">0</span></span>
+                        <span class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-green-500"></div> 已探店: <span id="doneCount">0</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto pb-2 scrollbar-hide">
+                <div class="flex gap-2" id="categoryTabs">
+                    <button onclick="setCategory('All')" class="cat-tab px-4 py-1.5 rounded-full text-xs font-bold bg-primary text-white whitespace-nowrap">全部</button>
+                    <button onclick="setCategory('ChaChaanTeng')" class="cat-tab px-4 py-1.5 rounded-full text-xs font-bold border border-warm-border text-orange-600 bg-white whitespace-nowrap">茶餐廳</button>
+                    <button onclick="setCategory('AsianNoodles')" class="cat-tab px-4 py-1.5 rounded-full text-xs font-bold border border-warm-border text-orange-600 bg-white whitespace-nowrap">麵食</button>
+                    <button onclick="setCategory('CoffeeLight')" class="cat-tab px-4 py-1.5 rounded-full text-xs font-bold border border-warm-border text-orange-600 bg-white whitespace-nowrap">咖啡/輕食</button>
+                    <button onclick="setCategory('BentoTakeout')" class="cat-tab px-4 py-1.5 rounded-full text-xs font-bold border border-warm-border text-orange-600 bg-white whitespace-nowrap">便當/外送</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- List Container -->
+        <div id="listContainer" class="space-y-4">
+            <!-- Items injected by JS -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden text-center py-20">
+            <div class="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-warm-border text-orange-200">
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.8 2.8c.5-.5 1.2-.5 1.7 0l8.7 8.7c.5.5.5 1.2 0 1.7l-8.7 8.7c-.5.5-1.2.5-1.7 0L3.1 13.2c-.5-.5-.5-1.2 0-1.7l8.7-8.7Z"/><path d="M7 10h10"/><path d="M7 14h10"/></svg>
+            </div>
+            <h3 class="text-xl font-black text-primary mb-2">還沒有推薦呢</h3>
+            <p class="text-muted-foreground mb-6">點擊右下角按鈕開始分享！</p>
+        </div>
+    </main>
+
+    <!-- FAB -->
+    <button onclick="toggleModal(true)" class="fixed bottom-8 right-8 w-16 h-16 rounded-full shadow-2xl bg-primary hover:bg-orange-600 hover:scale-110 transition-all z-50 flex items-center justify-center text-white">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/50 z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-white border-warm-border max-w-md w-full rounded-3xl p-6 relative">
+            <button onclick="toggleModal(false)" class="absolute top-4 right-4 text-gray-400 hover:text-black">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <h2 class="text-2xl font-black text-primary italic uppercase tracking-tight mb-6">分享 <span class="text-orange-400">美味推薦</span></h2>
+            <div class="space-y-5">
+                <div class="space-y-2">
+                    <label class="text-xs font-bold uppercase text-muted-foreground">餐廳分類</label>
+                    <select id="newCategory" class="w-full p-3 bg-orange-50/50 border-warm-border border rounded-xl text-sm font-bold appearance-none outline-none">
+                        <option value="ChaChaanTeng">茶餐廳</option>
+                        <option value="AsianNoodles">麵食</option>
+                        <option value="CoffeeLight">咖啡/輕食</option>
+                        <option value="BentoTakeout">便當/外送</option>
+                    </select>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-xs font-bold uppercase text-primary">餐廳名稱</label>
+                    <input id="newRestaurant" type="text" placeholder="例如：馬慶康南天咖啡室" class="w-full p-3 bg-orange-50/50 border-warm-border border rounded-xl text-sm outline-none">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-xs font-bold uppercase text-primary">推薦菜色</label>
+                    <input id="newDish" type="text" placeholder="例如：滑蛋牛肉炒河" class="w-full p-3 bg-orange-50/50 border-warm-border border rounded-xl text-sm outline-none">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-xs font-bold uppercase text-primary">食評心得</label>
+                    <input id="newReview" type="text" placeholder="寫下你的評價..." class="w-full p-3 bg-orange-50/50 border-warm-border border rounded-xl text-sm outline-none">
+                </div>
+                <button onclick="handleFormSubmit()" class="w-full bg-primary hover:bg-orange-600 text-white font-black uppercase tracking-widest h-12 rounded-xl shadow-lg mt-4">確認發佈</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSort = 'heat';
+        let currentStatusFilter = 'all';
+        let currentCategory = 'All';
+
+        const CATEGORY_LABELS = {
+            'ChaChaanTeng': '茶餐廳',
+            'AsianNoodles': '麵食',
+            'CoffeeLight': '咖啡/輕食',
+            'BentoTakeout': '便當/外送'
+        };
+
+        const CATEGORY_COLORS = {
+            'ChaChaanTeng': 'bg-amber-100 text-amber-700',
+            'AsianNoodles': 'bg-blue-100 text-blue-700',
+            'CoffeeLight': 'bg-green-100 text-green-700',
+            'BentoTakeout': 'bg-purple-100 text-purple-700'
+        };
+
+        // 核心功能 1：儲存資料
+        function saveData(newRecord) {
+            const records = loadData();
+            records.push(newRecord);
+            localStorage.setItem("records", JSON.stringify(records));
+        }
+
+        // 核心功能 2：讀取資料
+        function loadData() {
+            const data = localStorage.getItem("records");
+            return data ? JSON.parse(data) : [];
+        }
+
+        // 核心功能 3：渲染畫面
+        function renderList() {
+            const records = loadData();
+            const listContainer = document.getElementById("listContainer");
+            const emptyState = document.getElementById("emptyState");
+            const search = document.getElementById("searchInput").value.toLowerCase();
+
+            // 更新統計
+            const activeCount = records.filter(r => r.status === 'active').length;
+            const doneCount = records.filter(r => r.status === 'done').length;
+            document.getElementById("activeCount").innerText = activeCount;
+            document.getElementById("doneCount").innerText = doneCount;
+
+            // 過濾
+            let filtered = records.filter(rec => {
+                const matchesSearch = rec.restaurantName.toLowerCase().includes(search) || rec.dish.toLowerCase().includes(search);
+                const matchesCategory = currentCategory === 'All' || rec.category === currentCategory;
+                const matchesStatus = currentStatusFilter === 'all' || rec.status === currentStatusFilter;
+                return matchesSearch && matchesCategory && matchesStatus;
+            });
+
+            // 排序 (Active 優先，內部按 heat/latest)
+            filtered.sort((a, b) => {
+                // 狀態分組
+                if (currentStatusFilter === 'all') {
+                    if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
+                }
+
+                if (currentSort === 'heat') {
+                    return b.heatPoints - a.heatPoints;
+                } else {
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+                }
+            });
+
+            if (filtered.length === 0) {
+                listContainer.innerHTML = "";
+                emptyState.classList.remove("hidden");
+                return;
+            }
+
+            emptyState.classList.add("hidden");
+            listContainer.innerHTML = filtered.map((rec, index) => {
+                const isRanked = currentSort === 'heat' && currentCategory === 'All' && index < 3 && rec.status === 'active';
+                const rankColor = index === 0 ? "bg-yellow-500" : index === 1 ? "bg-slate-400" : "bg-amber-600";
+                
+                return `
+                    <div class="lunch-card relative bg-white rounded-2xl border border-warm-border overflow-hidden ${rec.status === 'done' ? 'opacity-60 grayscale-[0.5]' : 'shadow-sm hover:shadow-md'}">
+                        ${isRanked ? `<div class="ranking-badge ${rankColor}">${index + 1}</div>` : ''}
+                        ${rec.status === 'done' ? `
+                            <div class="absolute top-4 right-4 z-20 pointer-events-none">
+                                <div class="border-4 border-green-500/50 text-green-500/50 px-3 py-1 rounded-lg font-black text-xl rotate-12 uppercase tracking-widest">已探店</div>
+                            </div>
+                        ` : ''}
+                        <div class="p-5 flex flex-col sm:flex-row">
+                            <div class="flex-1">
+                                <div class="flex items-start justify-between mb-2">
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${CATEGORY_COLORS[rec.category]}">${CATEGORY_LABELS[rec.category]}</span>
+                                    <div class="flex items-center gap-1 text-[10px] font-bold text-orange-400">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.5 4 6.5 2 2 3 3.5 3 5.5a6 6 0 1 1-12 0c0-1.38.5-2 1-3 1-2 2.5-3.5 1-4.5-1 4-1.5 5.5-1 7.5Z"/></svg>
+                                        ${rec.heatPoints} 熱度
+                                    </div>
+                                </div>
+                                <h3 class="text-xl font-black text-gray-900 mb-1 flex items-center gap-2">
+                                    ${rec.restaurantName}
+                                    <svg class="text-orange-300" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                                </h3>
+
+                                ${rec.status === 'active' ? `
+                                    <div class="bg-orange-50/50 rounded-lg p-3 mb-3 border border-orange-100">
+                                        <p class="text-[10px] font-bold text-primary mb-1 uppercase tracking-tighter">推薦菜色：</p>
+                                        <p class="text-sm font-bold text-gray-800">${rec.dish}</p>
+                                    </div>
+                                    ${rec.review ? `
+                                        <div class="flex gap-2 items-start mb-4">
+                                            <p class="text-sm text-gray-500 italic leading-relaxed">"${rec.review}"</p>
+                                        </div>
+                                    ` : ''}
+                                ` : `<div class="text-[10px] text-gray-400 mb-4 italic">內容已收合</div>`}
+
+                                <div class="flex items-center justify-between pt-4 border-t border-orange-50">
+                                    <span class="text-[10px] font-bold text-gray-400">已於 ${new Date(rec.createdAt).toLocaleDateString()} 發佈</span>
+                                    <button onclick="toggleStatus('${rec.id}')" class="h-7 px-3 text-[10px] font-bold rounded-full ${rec.status === 'active' ? 'text-orange-600 hover:bg-orange-50 border border-orange-100' : 'text-green-600 hover:bg-green-50 border border-green-100'}">
+                                        ${rec.status === 'active' ? '標記為我吃過了' : '恢復為待吃項目'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        // 交互輔助
+        function toggleStatus(id) {
+            const records = loadData();
+            const record = records.find(r => r.id === id);
+            if (record) {
+                record.status = record.status === 'active' ? 'done' : 'active';
+                localStorage.setItem("records", JSON.stringify(records));
+                renderList();
+            }
+        }
+
+        function setSort(type) {
+            currentSort = type;
+            document.getElementById("btnSortHeat").className = type === 'heat' ? "px-4 py-1.5 text-xs font-bold rounded-md transition-all bg-primary text-white shadow-md" : "px-4 py-1.5 text-xs font-bold rounded-md transition-all text-orange-600 hover:bg-orange-100";
+            document.getElementById("btnSortLatest").className = type === 'latest' ? "px-4 py-1.5 text-xs font-bold rounded-md transition-all bg-primary text-white shadow-md" : "px-4 py-1.5 text-xs font-bold rounded-md transition-all text-orange-600 hover:bg-orange-100";
+            renderList();
+        }
+
+        function setStatusFilter(filter) {
+            currentStatusFilter = filter;
+            ['fAll', 'fActive', 'fDone'].forEach(id => {
+                const btn = document.getElementById(id);
+                const isActive = (id === 'fAll' && filter === 'all') || (id === 'fActive' && filter === 'active') || (id === 'fDone' && filter === 'done');
+                btn.className = isActive ? "px-4 py-1.5 text-xs font-bold rounded-md transition-all bg-primary text-white shadow-md" : "px-4 py-1.5 text-xs font-bold rounded-md transition-all text-orange-600 hover:bg-orange-100";
+            });
+            renderList();
+        }
+
+        function setCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll(".cat-tab").forEach(btn => {
+                if (btn.innerText === (cat === 'All' ? '全部' : CATEGORY_LABELS[cat])) {
+                    btn.classList.add("bg-primary", "text-white");
+                    btn.classList.remove("border", "text-orange-600", "bg-white");
+                } else {
+                    btn.classList.remove("bg-primary", "text-white");
+                    btn.classList.add("border", "text-orange-600", "bg-white");
+                }
+            });
+            renderList();
+        }
+
+        function toggleModal(show) {
+            document.getElementById("modal").classList.toggle("hidden", !show);
+        }
+
+        function handleFormSubmit() {
+            const restaurant = document.getElementById("newRestaurant").value;
+            const dish = document.getElementById("newDish").value;
+            const review = document.getElementById("newReview").value;
+            const category = document.getElementById("newCategory").value;
+
+            if (!restaurant || !dish) {
+                alert("請輸入餐廳名稱與推薦菜色！");
+                return;
+            }
+
+            const newRecord = {
+                id: Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+                createdAt: new Date().toISOString(),
+                restaurantName: restaurant,
+                dish: dish,
+                review: review,
+                category: category,
+                status: "active",
+                heatPoints: Math.floor(Math.random() * 50) + 10 // 隨機初始熱度
+            };
+
+            saveData(newRecord);
+            alert("發佈成功！");
+            toggleModal(false);
+            
+            // 清空表單
+            document.getElementById("newRestaurant").value = "";
+            document.getElementById("newDish").value = "";
+            document.getElementById("newReview").value = "";
+            
+            renderList();
+        }
+
+        // 初始化
+        window.onload = function() {
+            // 如果沒資料，預設幾筆
+            if (loadData().length === 0) {
+                const seeds = [
+                    { id: "1_seed", createdAt: new Date().toISOString(), restaurantName: "馬慶康南天咖啡室", dish: "滑蛋牛肉炒河", review: "經典美味", category: "ChaChaanTeng", status: "active", heatPoints: 165 },
+                    { id: "2_seed", createdAt: new Date().toISOString(), restaurantName: "雅香粉麵咖啡", dish: "椰汁雞麵", review: "濃郁湯頭", category: "AsianNoodles", status: "active", heatPoints: 120 }
+                ];
+                localStorage.setItem("records", JSON.stringify(seeds));
+            }
+            renderList();
+        };
+    </script>
+</body>
+</html>
