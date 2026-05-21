@@ -7,6 +7,7 @@
     <title>高士德午餐排行榜 - HTML版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #fdfcfb; }
         .lunch-card { transition: all 0.3s ease; }
@@ -42,6 +43,13 @@
                     <h1 class="text-lg font-black tracking-tight leading-none text-primary">高士德午餐</h1>
                     <p class="text-[10px] font-bold text-orange-400 uppercase tracking-widest">HTML PERSISTENCE</p>
                 </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button onclick="handleAISummary()" id="aiBtn" class="flex items-center gap-2 bg-zinc-800 text-zinc-100 px-4 py-2 rounded-full font-medium hover:bg-zinc-700 transition-colors active:scale-95 border border-zinc-700 disabled:opacity-50">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span id="aiBtnText">AI 摘要</span>
+                </button>
             </div>
 
             <div class="flex-1 mx-4 relative hidden sm:block">
@@ -167,8 +175,36 @@
         };
 
         // =============================================
+        // 資料正規化 Helper
+        // =============================================
+        function normalizeRecord(record) {
+            return {
+                id: record.id || record.ID || "",
+                createdAt: record.createdAt || record.CreatedAt || "",
+                restaurantName: record.restaurantName || record.Content || "",
+                dish: record.dish || "",
+                review: record.review || "",
+                category: record.category || record.Category || "其他",
+                heatPoints: Number(record.heatPoints !== undefined ? record.heatPoints : (record.Likes || 0)),
+                status: record.status || record.Status || "active"
+            };
+        }
+
+        // =============================================
         // Google Sheet 同步 Helper
         // =============================================
+        async function fetchRecordsFromSheet() {
+            if (APPS_SCRIPT_URL.includes("PASTE")) return null;
+            try {
+                const res = await fetch(APPS_SCRIPT_URL);
+                const data = await res.json();
+                return Array.isArray(data.records) ? data.records.map(normalizeRecord) : null;
+            } catch (e) {
+                console.warn("從 Sheet 讀取失敗", e);
+                return null;
+            }
+        }
+
         function syncToSheet(payload) {
             if (APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbwLdCT4PwMbt6ye5pzAnwuCi0GqG3sNedPRVhV9ixpjOD4msW04IVY4vtLjOtSCSkGc/exec") {
                 console.warn("⚠️ APPS_SCRIPT_URL 尚未設定，跳過 Google Sheet 同步");
@@ -190,33 +226,37 @@
         }
 
         // =============================================
-        // 核心功能 1：儲存資料（localStorage 本機備份 + Google Sheet 同步）
+        // 核心功能 1：讀取資料（從 Sheet 讀回，localStorage 做 fallback）
         // =============================================
-        function saveData(newRecord) {
-            const records = loadData();
-            records.push(newRecord);
-            localStorage.setItem("records", JSON.stringify(records));
-
-            // 同步到 Google Sheet
-            syncToSheet({ action: "create", record: newRecord });
-        }
-
-        // =============================================
-        // 核心功能 2：讀取資料（從 localStorage）
-        // =============================================
-        function loadData() {
+        async function loadData() {
+            const remote = await fetchRecordsFromSheet();
+            if (remote) {
+                localStorage.setItem("records", JSON.stringify(remote));
+                return remote;
+            }
             const data = localStorage.getItem("records");
             return data ? JSON.parse(data) : [];
         }
 
         // =============================================
+        // 核心功能 2：儲存資料（localStorage 本機備份 + Google Sheet 同步）
+        // =============================================
+        async function saveData(newRecord) {
+            const records = await loadData();
+            records.push(newRecord);
+            localStorage.setItem("records", JSON.stringify(records));
+            syncToSheet({ action: "create", record: newRecord });
+            await renderList(records);
+        }
+
+        // =============================================
         // 核心功能 3：渲染畫面
         // =============================================
-        function renderList() {
-            const records = loadData();
+        async function renderList(recordsOverride) {
+            const records = recordsOverride || await loadData();
             const listContainer = document.getElementById("listContainer");
             const emptyState = document.getElementById("emptyState");
-            const search = document.getElementById("searchInput").value.toLowerCase();
+            const search = document.getElementById("searchInput")?.value?.toLowerCase() || "";
 
             // 更新統計
             const activeCount = records.filter(r => r.status === 'active').length;
@@ -226,7 +266,7 @@
 
             // 過濾
             let filtered = records.filter(rec => {
-                const matchesSearch = rec.restaurantName.toLowerCase().includes(search) || rec.dish.toLowerCase().includes(search);
+                const matchesSearch = (rec.restaurantName || "").toLowerCase().includes(search) || (rec.dish || "").toLowerCase().includes(search);
                 const matchesCategory = currentCategory === 'All' || rec.category === currentCategory;
                 const matchesStatus = currentStatusFilter === 'all' || rec.status === currentStatusFilter;
                 return matchesSearch && matchesCategory && matchesStatus;
@@ -268,7 +308,7 @@
                         <div class="p-5 flex flex-col sm:flex-row">
                             <div class="flex-1">
                                 <div class="flex items-start justify-between mb-2">
-                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${CATEGORY_COLORS[rec.category]}">${CATEGORY_LABELS[rec.category]}</span>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${CATEGORY_COLORS[rec.category] || 'bg-gray-100 text-gray-700'}">${CATEGORY_LABELS[rec.category] || rec.category}</span>
                                     <div class="flex items-center gap-1 text-[10px] font-bold text-orange-400">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.5 4 6.5 2 2 3 3.5 3 5.5a6 6 0 1 1-12 0c0-1.38.5-2 1-3 1-2 2.5-3.5 1-4.5-1 4-1.5 5.5-1 7.5Z"/></svg>
                                         ${rec.heatPoints} 熱度
@@ -307,8 +347,8 @@
         // =============================================
         // 交互輔助
         // =============================================
-        function toggleStatus(id) {
-            const records = loadData();
+        async function toggleStatus(id) {
+            const records = await loadData();
             const record = records.find(r => r.id === id);
             if (record) {
                 record.status = record.status === 'active' ? 'done' : 'active';
@@ -321,7 +361,7 @@
                     changes: { status: record.status }
                 });
 
-                renderList();
+                await renderList(records);
             }
         }
 
@@ -360,7 +400,7 @@
             document.getElementById("modal").classList.toggle("hidden", !show);
         }
 
-        function handleFormSubmit() {
+        async function handleFormSubmit() {
             const restaurant = document.getElementById("newRestaurant").value;
             const dish = document.getElementById("newDish").value;
             const review = document.getElementById("newReview").value;
@@ -382,7 +422,7 @@
                 heatPoints: Math.floor(Math.random() * 50) + 10
             };
 
-            saveData(newRecord);
+            await saveData(newRecord);
             alert("發佈成功！");
             toggleModal(false);
             
@@ -390,29 +430,54 @@
             document.getElementById("newRestaurant").value = "";
             document.getElementById("newDish").value = "";
             document.getElementById("newReview").value = "";
-            
-            renderList();
+        }
+
+        // =============================================
+        // AI 摘要功能
+        // =============================================
+        async function askAI(userPrompt) {
+            const res = await fetch(APPS_SCRIPT_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: JSON.stringify({ action: "askAI", prompt: userPrompt })
+            });
+            const data = await res.json();
+            return data.result || data.error || "AI 冇回應";
+        }
+
+        async function handleAISummary() {
+            const btn = document.getElementById('aiBtn');
+            const text = document.getElementById('aiBtnText');
+            btn.disabled = true;
+            text.textContent = '思考中...';
+            try {
+                const records = await loadData();
+                if (records.length === 0) { 
+                    alert('未有推薦資料可以摘要'); 
+                    return; 
+                }
+                const summaryInput = records.slice(0, 30).map(r =>
+                    `[${CATEGORY_LABELS[r.category] || r.category}] ${r.restaurantName} - ${r.dish}${r.review ? '：' + r.review : ''}`
+                ).join('\n');
+                const prompt = '以下是高士德午餐排行榜嘅推薦。請用繁體中文，用 3-5 句概括最受歡迎嘅餐廳類型、常見推薦菜式同有冇明顯嘅飲食趨勢:\n\n' + summaryInput;
+                const result = await askAI(prompt);
+                alert(result);
+            } catch (e) {
+                alert('AI 出錯：' + e.message);
+            } finally {
+                btn.disabled = false;
+                text.textContent = 'AI 摘要';
+            }
         }
 
         // =============================================
         // 初始化
         // =============================================
-        window.onload = function() {
-            // 如果沒資料，預設幾筆
-            if (loadData().length === 0) {
-                const seeds = [
-                    { id: "1_seed", createdAt: new Date().toISOString(), restaurantName: "馬慶康南天咖啡室", dish: "滑蛋牛肉炒河", review: "經典美味", category: "ChaChaanTeng", status: "active", heatPoints: 165 },
-                    { id: "2_seed", createdAt: new Date().toISOString(), restaurantName: "雅香粉麵咖啡", dish: "椰汁雞麵", review: "濃郁湯頭", category: "AsianNoodles", status: "active", heatPoints: 120 }
-                ];
-                localStorage.setItem("records", JSON.stringify(seeds));
-
-                // 將預設資料也同步到 Google Sheet
-                seeds.forEach(seed => {
-                    syncToSheet({ action: "create", record: seed });
-                });
-            }
-            renderList();
+        window.onload = async () => {
+            await renderList();
+            lucide.createIcons();
         };
     </script>
 </body>
 </html>
+            
