@@ -196,7 +196,7 @@
         async function fetchRecordsFromSheet() {
             if (APPS_SCRIPT_URL.includes("PASTE")) return null;
             try {
-                const res = await fetch(APPS_SCRIPT_URL);
+                 res = await fetch(APPS_SCRIPT_URL);
                 const data = await res.json();
                 return Array.isArray(data.records) ? data.records.map(normalizeRecord) : null;
             } catch (e) {
@@ -206,7 +206,7 @@
         }
 
         function syncToSheet(payload) {
-            if (APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbwLdCT4PwMbt6ye5pzAnwuCi0GqG3sNedPRVhV9ixpjOD4msW04IVY4vtLjOtSCSkGc/exec") {
+            if (APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbyrgO1-MeQg4QqLpJx59idkch6LpVG3AEx1ci8xJV9zOdJsBpGyfYABHckIytn4sQLm/exec") {
                 console.warn("⚠️ APPS_SCRIPT_URL 尚未設定，跳過 Google Sheet 同步");
                 return;
             }
