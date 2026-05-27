@@ -433,51 +433,72 @@
         }
 
         // =============================================
-        // AI 摘要功能
-        // =============================================
-        async function askAI(userPrompt) {
-            const res = await fetch(APPS_SCRIPT_URL, {
-                method: "POST",
-                headers: { "Content-Type": "text/plain" },
-                body: JSON.stringify({ action: "askAI", prompt: userPrompt })
-            });
-            const data = await res.json();
-            return data.result || data.error || "AI 冇回應";
-        }
+        // AI 摘要功能
+        // =============================================
+        async function askAI(userPrompt) {
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "askAI",
+                        prompt: userPrompt
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.result) {
+                    return data.result;
+                } else {
+                    throw new Error(data.error || "未知錯誤");
+                }
+            } catch (error) {
+                console.error("AI 呼叫失敗:", error);
+                return "抱歉，呼叫 AI 時發生錯誤：" + error.message;
+            }
+        }
 
-        async function handleAISummary() {
-            const btn = document.getElementById('aiBtn');
-            const text = document.getElementById('aiBtnText');
-            btn.disabled = true;
-            text.textContent = '思考中...';
-            try {
-                const records = await loadData();
-                if (records.length === 0) { 
-                    alert('未有推薦資料可以摘要'); 
-                    return; 
-                }
-                const summaryInput = records.slice(0, 30).map(r =>
-                    `[${CATEGORY_LABELS[r.category] || r.category}] ${r.restaurantName} - ${r.dish}${r.review ? '：' + r.review : ''}`
-                ).join('\n');
-                const prompt = '以下是高士德午餐排行榜嘅推薦。請用繁體中文，用 3-5 句概括最受歡迎嘅餐廳類型、常見推薦菜式同有冇明顯嘅飲食趨勢:\n\n' + summaryInput;
-                const result = await askAI(prompt);
-                alert(result);
-            } catch (e) {
-                alert('AI 出錯：' + e.message);
-            } finally {
-                btn.disabled = false;
-                text.textContent = 'AI 摘要';
-            }
-        }
+        async function handleAISummary() {
+            const btn = document.getElementById("aiBtn");
+            const btnText = document.getElementById("aiBtnText");
+            const originalText = btnText.innerText;
 
-        // =============================================
-        // 初始化
-        // =============================================
-        window.onload = async () => {
-            await renderList();
-            lucide.createIcons();
-        };
-    </script>
+            // 讀取目前資料
+            const records = await loadData();
+            const activeRecords = records.filter(r => r.status === 'active');
+
+            if (activeRecords.length === 0) {
+                alert("清單中目前沒有「待吃」的餐廳，快去新增幾間吧！");
+                return;
+            }
+
+            // 組合 Prompt
+            const restaurantNames = activeRecords.map(r => `${r.restaurantName} (${r.dish})`).join("、");
+            const prompt = `我是高士德附近的上班族，今天午餐不知道要吃什麼。以下是我的待吃清單：${restaurantNames}。請你用輕鬆、簡短的語氣（約50-100字），隨機挑選一間強烈推薦給我，並告訴我為什麼今天適合吃這間。`;
+
+            // UI 進入 Loading 狀態
+            btn.disabled = true;
+            btnText.innerText = "AI 思考中...";
+            btn.classList.add("animate-pulse");
+
+            // 取得 AI 回應
+            const aiResponse = await askAI(prompt);
+            
+            // 恢復 UI 狀態
+            btn.disabled = false;
+            btnText.innerText = originalText;
+            btn.classList.remove("animate-pulse");
+
+            // 顯示結果 (這裡簡單用 alert，你也可以改成自訂的 Modal 彈跳視窗)
+            alert("✨ AI 午餐推薦 ✨\n\n" + aiResponse);
+        }
+
+        // =============================================
+        // 初始化頁面
+        // =============================================
+        window.addEventListener('DOMContentLoaded', () => {
+            renderList();
+        });
+
+    </script>
 </body>
 </html>
-            
